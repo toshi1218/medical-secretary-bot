@@ -1,0 +1,21 @@
+{
+    "version":  2,
+    "buildCommand":  "echo \u0027Build complete\u0027",
+    "functions":  {
+                      "api/webhook/**/*.js":  {
+                                                  "runtime":  "nodejs20.x",
+                                                  "maxDuration":  60
+                                              },
+                      "api/test.js":  {
+                                          "runtime":  "nodejs20.x",
+                                          "maxDuration":  10
+                                      },
+                      "api/cron/**/*.js":  {
+                                               "runtime":  "nodejs20.x",
+                                               "maxDuration":  300
+                                           }
+                  },
+    "env":  {
+                "TZ":  "Asia/Manila"
+            }
+}
