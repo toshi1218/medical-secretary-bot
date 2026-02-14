@@ -15,21 +15,37 @@ export default async function handler(req, res) {
   try {
     const payload = req.body;
 
-    // Webhookイベントの種類をチェック
-    if (!payload.messages || payload.messages.length === 0) {
+    // Whapiは messages 配列または単一メッセージオブジェクトを送信する
+    let messages = [];
+    if (payload.messages && Array.isArray(payload.messages)) {
+      messages = payload.messages;
+    } else if (payload.event && payload.data) {
+      // イベント形式の場合
+      messages = [payload.data];
+    } else if (payload.type) {
+      // 単一メッセージの場合
+      messages = [payload];
+    }
+
+    if (messages.length === 0) {
       return res.status(200).json({ success: true, message: 'No messages to process' });
     }
 
     const whapiClient = new WhapiClient();
 
-    for (const message of payload.messages) {
+    for (const message of messages) {
       try {
-        // グループメッセージのみ処理
-        if (!message.from_name || !isMonitoredGroup(message.from_name)) {
+        const groupName = message.chat_name || message.from_name || '';
+        const chatId = message.chat_id || message.from || '';
+
+        // グループメッセージのみ処理（グループIDは @g.us で終わる）
+        if (!chatId.includes('@g.us') && !groupName) {
           continue;
         }
 
-        const groupName = message.from_name;
+        if (groupName && !isMonitoredGroup(groupName)) {
+          continue;
+        }
 
         // ドキュメントまたは画像がある場合
         if (message.type === 'document' || message.type === 'image') {

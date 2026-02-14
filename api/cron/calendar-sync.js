@@ -1,5 +1,5 @@
 import { scrapeCalendar, extractExams, formatCalendarEvent, formatExam } from '../../lib/calendar.js';
-import { upsertCalendarEvent, createExam } from '../../lib/db.js';
+import { upsertCalendarEvent, upsertExam } from '../../lib/db.js';
 import { sendCustomNotification } from '../../lib/telegram.js';
 
 /**
@@ -39,7 +39,7 @@ export default async function handler(req, res) {
 
           // 既存の試験をチェック（重複回避）
           // 簡易実装: 同じ科目・同じ日付の試験があれば更新
-          await createExam(examData);
+          await upsertExam(examData);
           syncedExams++;
         }
 
