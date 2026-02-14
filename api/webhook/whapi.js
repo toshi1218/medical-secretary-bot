@@ -1,6 +1,6 @@
 ﻿import { WhapiClient, isMonitoredGroup, getFileType, extractSubject } from '../../lib/whapi.js';
 import { uploadFile } from '../../lib/supabase.js';
-import { createWhatsAppFile, createOCRRecord } from '../../lib/db.js';
+import { createWhatsAppFile, createOCRRecord, upsertWhatsAppMessage } from '../../lib/db.js';
 import { extractTextFromImage, extractSubjectFromOCR } from '../../lib/gemini.js';
 import { sendCustomNotification } from '../../lib/telegram.js';
 
@@ -144,8 +144,27 @@ async function handleTextMessage(message, groupName, chatId) {
   const text = getTextBody(message).trim();
   if (!text) return;
 
+  const messageId = String(
+    message.id ||
+    message.message_id ||
+    `${chatId || 'unknown'}:${message.timestamp || message.time || Date.now()}:${text.slice(0, 32)}`
+  );
   const sender = message.from_name || message.pushname || 'Unknown';
   const source = groupName || chatId || 'unknown-chat';
+  const ts = message.timestamp || message.time || message.created_at || Date.now();
+  const messageTs = new Date(typeof ts === 'number' ? ts * 1000 : ts).toISOString();
+
+  await upsertWhatsAppMessage({
+    message_id: messageId,
+    chat_id: chatId || 'unknown-chat',
+    group_name: groupName || null,
+    sender_name: sender,
+    from_me: !!message.from_me,
+    message_type: message.type || 'text',
+    text_body: text,
+    message_ts: messageTs,
+    raw_payload: message
+  });
 
   await sendCustomNotification(
     `💬 WhatsApp - ${source}`,
