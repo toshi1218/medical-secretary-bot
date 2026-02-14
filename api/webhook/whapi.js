@@ -5,11 +5,16 @@ import { extractTextFromImage, extractSubjectFromOCR } from '../../lib/gemini.js
 import { sendCustomNotification } from '../../lib/telegram.js';
 
 export default async function handler(req, res) {
+  const requestStartedAt = Date.now();
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
   try {
+    console.log('[whapi] request_received', {
+      at: new Date().toISOString(),
+      method: req.method
+    });
     const payload = req.body;
 
     let messages = [];
@@ -28,6 +33,7 @@ export default async function handler(req, res) {
     const whapiClient = new WhapiClient();
 
     for (const message of messages) {
+      const messageStartedAt = Date.now();
       try {
         const groupName = message.chat_name || message.from_name || '';
         const chatId = message.chat_id || message.from || '';
@@ -47,12 +53,22 @@ export default async function handler(req, res) {
         if (message.type === 'text') {
           await handleTextMessage(message, groupName, chatId);
         }
+        console.log('[whapi] message_processed', {
+          type: message.type || 'unknown',
+          groupName: groupName || null,
+          chatId: chatId || null,
+          durationMs: Date.now() - messageStartedAt
+        });
       } catch (error) {
         console.error('Error processing message:', error);
         await sendCustomNotification('WhatsApp処理エラー', `メッセージ処理中にエラー: ${error.message}`);
       }
     }
 
+    console.log('[whapi] request_completed', {
+      messages: messages.length,
+      durationMs: Date.now() - requestStartedAt
+    });
     return res.status(200).json({ success: true });
   } catch (error) {
     console.error('Webhook handler error:', error);
@@ -124,6 +140,7 @@ function getTextBody(message) {
 }
 
 async function handleTextMessage(message, groupName, chatId) {
+  const startedAt = Date.now();
   const text = getTextBody(message).trim();
   if (!text) return;
 
@@ -134,4 +151,10 @@ async function handleTextMessage(message, groupName, chatId) {
     `💬 WhatsApp - ${source}`,
     `送信者: ${sender}\n${text}`
   );
+  console.log('[whapi] text_forwarded', {
+    source,
+    sender,
+    textLength: text.length,
+    durationMs: Date.now() - startedAt
+  });
 }
