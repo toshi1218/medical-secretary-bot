@@ -3,22 +3,19 @@
   "buildCommand": "echo 'Build complete'",
   "functions": {
     "api/webhook/**/*.js": {
-      "runtime": "nodejs20.x",
       "maxDuration": 60
     },
     "api/test.js": {
-      "runtime": "nodejs20.x",
       "maxDuration": 10
     },
     "api/cron/**/*.js": {
-      "runtime": "nodejs20.x",
       "maxDuration": 300
     }
   },
   "crons": [
     {
       "path": "/api/cron/calendar-sync",
-      "schedule": "0 * * * *"
+      "schedule": "0 0 * * *"
     },
     {
       "path": "/api/cron/morning-notification",
@@ -28,8 +25,5 @@
       "path": "/api/cron/evening-notification",
       "schedule": "0 14 * * *"
     }
-  ],
-  "env": {
-    "TZ": "Asia/Manila"
-  }
+  ]
 }
