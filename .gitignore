@@ -40,3 +40,18 @@ coverage/
 
 # Misc
 .cache/
+
+# SQLite database
+data/*.db
+data/*.db-shm
+data/*.db-wal
+
+# Downloaded WhatsApp media
+downloads/documents/*
+downloads/images/*
+!downloads/documents/.gitkeep
+!downloads/images/.gitkeep
+!data/.gitkeep
+
+# Vercel (legacy)
+.vercel

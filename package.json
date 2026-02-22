@@ -1,25 +1,24 @@
 {
-  "name": "medical-secretary-vercel",
-  "version": "1.0.0",
-  "description": "Medical Secretary System on Vercel + Supabase",
-  "type": "module",
+  "name": "medical-secretary-bot",
+  "version": "2.0.0",
+  "description": "Medical Secretary Bot for Gullas College of Medicine 3B — Oracle Cloud VM + SQLite",
+  "main": "src/index.js",
   "scripts": {
-    "dev": "echo Run vercel dev directly",
-    "deploy": "vercel --prod",
-    "backfill:whatsapp": "node scripts/backfill-whatsapp.js"
+    "start": "node src/index.js",
+    "dev": "node src/index.js"
   },
   "dependencies": {
     "@google/generative-ai": "^0.21.0",
-    "@sparticuz/chromium": "^131.0.0",
-    "@supabase/supabase-js": "^2.45.1",
-    "axios": "^1.7.7",
+    "axios": "^1.6.7",
+    "better-sqlite3": "^9.4.0",
+    "dotenv": "^16.4.1",
+    "express": "^4.18.2",
+    "moment-timezone": "^0.5.45",
+    "node-cron": "^3.0.3",
     "node-telegram-bot-api": "^0.64.0",
-    "puppeteer-core": "^23.0.0"
-  },
-  "devDependencies": {
-    "vercel": "^37.0.0"
+    "puppeteer": "^21.11.0"
   },
   "engines": {
-    "node": "20.x"
+    "node": ">=18.0.0"
   }
 }
