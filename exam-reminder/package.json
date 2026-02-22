@@ -1,0 +1,19 @@
+{
+  "name": "exam-reminder",
+  "version": "1.0.0",
+  "description": "Exam reminder bot using Puppeteer and Telegram",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node index.js",
+    "morning": "node index.js morning",
+    "evening": "node index.js evening",
+    "night": "node index.js night",
+    "dry-run": "node index.js morning --dry-run"
+  },
+  "dependencies": {
+    "puppeteer": "^22.0.0"
+  },
+  "engines": {
+    "node": "20.x"
+  }
+}

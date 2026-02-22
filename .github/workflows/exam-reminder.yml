@@ -1,0 +1,94 @@
+name: Exam Reminder
+
+on:
+  schedule:
+    # Manila time (UTC+8)
+    # 07:00 Manila = 23:00 UTC (previous day)
+    - cron: '0 23 * * *'
+    # 20:00 Manila = 12:00 UTC
+    - cron: '0 12 * * *'
+    # 22:00 Manila = 14:00 UTC
+    - cron: '0 14 * * *'
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'Notification mode'
+        required: true
+        default: 'morning'
+        type: choice
+        options:
+          - morning
+          - evening
+          - night
+      dry_run:
+        description: 'Dry run (no Telegram message sent)'
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  remind:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: exam-reminder/package-lock.json
+
+      - name: Install dependencies
+        working-directory: exam-reminder
+        run: npm ci
+
+      - name: Install Chromium dependencies
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q \
+            libnss3 libatk-bridge2.0-0 libdrm2 libxkbcommon0 \
+            libgbm1 libasound2 libxshmfence1 libxfixes3 \
+            fonts-liberation libappindicator3-1 xdg-utils
+
+      - name: Determine mode (scheduled)
+        if: github.event_name == 'schedule'
+        id: schedule_mode
+        run: |
+          HOUR=$(date -u +%H)
+          if [ "$HOUR" = "23" ]; then
+            echo "mode=morning" >> $GITHUB_OUTPUT
+          elif [ "$HOUR" = "12" ]; then
+            echo "mode=evening" >> $GITHUB_OUTPUT
+          else
+            echo "mode=night" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Set mode
+        id: mode
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "mode=${{ github.event.inputs.mode }}" >> $GITHUB_OUTPUT
+            echo "dry_run=${{ github.event.inputs.dry_run }}" >> $GITHUB_OUTPUT
+          else
+            echo "mode=${{ steps.schedule_mode.outputs.mode }}" >> $GITHUB_OUTPUT
+            echo "dry_run=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Run exam reminder
+        working-directory: exam-reminder
+        env:
+          SCHOOL_CALENDAR_URL: ${{ secrets.SCHOOL_CALENDAR_URL }}
+          TELEGRAM_BOT_TOKEN:  ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID:    ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          MODE="${{ steps.mode.outputs.mode }}"
+          DRY="${{ steps.mode.outputs.dry_run }}"
+          if [ "$DRY" = "true" ]; then
+            node index.js "$MODE" --dry-run
+          else
+            node index.js "$MODE"
+          fi
