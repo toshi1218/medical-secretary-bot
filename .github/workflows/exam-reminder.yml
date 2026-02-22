@@ -42,7 +42,7 @@ jobs:
 
       - name: Install dependencies
         working-directory: exam-reminder
-        run: npm ci
+        run: npm install
 
       - name: Install Chromium dependencies
         run: |
