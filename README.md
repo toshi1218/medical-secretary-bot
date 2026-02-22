@@ -1,234 +1,299 @@
-# 医療秘書システム (Medical Secretary System)
+# Medical Secretary Bot
 
-Vercel + Supabase で動作する医学生向けの統合秘書システム。WhatsApp監視、カレンダー同期、Telegram通知を完全自動化。
+Gullas College of Medicine 3B向け自動秘書 Telegram Bot。
+GASカレンダー + WhatsApp監視を統合し、毎日自動プッシュ通知。
 
-## 🎯 主な機能
+## 🏗️ 技術スタック
 
-### 1. WhatsApp監視（Whapi API）
-- 監視対象グループからファイル・画像を自動ダウンロード
-- Supabase Storageに保存
-- 画像はGemini OCRで自動テキスト抽出
-- 科目名・期限を自動認識
+| 項目 | 採用 |
+|------|------|
+| 実行環境 | **Google Cloud e2-micro**（Always Free / Ubuntu 22.04） |
+| データベース | **SQLite**（better-sqlite3 / WAL mode） |
+| スケジューラ | **node-cron**（Asia/Manila） |
+| カレンダー取得 | **Puppeteer**（GASレスポンスインターセプト） |
+| OCR | **Gemini 2.0 Flash** |
+| WhatsApp | **Whapi API** |
+| 通知 | **Telegram Bot API** |
+| プロセス管理 | **PM2** |
 
-### 2. カレンダー自動同期
-- 学校カレンダーを毎時スクレイピング（Puppeteer）
-- 授業・試験情報を自動抽出
-- Supabase PostgreSQLに保存
-
-### 3. Telegram通知
-- **毎朝7:00** - 今日の予定 + 試験カウントダウン
-- **毎晩22:00** - 明日の準備確認
-- **試験3日前** - 特別アラート
-- リアルタイムでWhatsApp通知
-
-### 4. Gemini OCR
-- 医学教育資料の画像から正確にテキスト抽出
-- 科目名・モジュール番号・提出期限を自動認識
-
-## 🛠️ 技術スタック
-
-- **Frontend/Backend**: Vercel Serverless Functions
-- **Database**: Supabase (PostgreSQL)
-- **Storage**: Supabase Storage
-- **Scheduler**: Vercel Cron Jobs
-- **WhatsApp**: Whapi API
-- **OCR**: Google Gemini API
-- **Notifications**: Telegram Bot API
-- **Scraping**: Puppeteer + @sparticuz/chromium
-
-## 📦 プロジェクト構造
+## 📁 ディレクトリ構成
 
 ```
-medical-secretary-bot/
-├── api/                          # Vercel Serverless Functions
-│   ├── webhook/
-│   │   └── whapi.js             # WhatsApp Webhook
-│   ├── cron/
-│   │   ├── calendar-sync.js     # カレンダー同期（毎時）
-│   │   ├── morning-notification.js  # 朝の通知（7:00）
-│   │   └── evening-notification.js  # 夜の通知（22:00）
-│   └── test.js                  # ヘルスチェック
-├── lib/                          # 共通ロジック
-│   ├── supabase.js              # Supabase クライアント
-│   ├── db.js                    # データベース操作
-│   ├── telegram.js              # Telegram API
-│   ├── whapi.js                 # Whapi API クライアント
-│   ├── gemini.js                # Gemini OCR
-│   └── calendar.js              # カレンダースクレイパー
-├── supabase/
-│   └── migrations/
-│       └── 001_init.sql         # DBスキーマ
-├── package.json
-├── vercel.json                  # Vercel設定（Cron含む）
-└── .env.example                 # 環境変数テンプレート
+src/
+├── index.js                 # メインエントリ（Express + cron）
+├── calendar/scraper.js      # GASカレンダー取得・保存
+├── database/
+│   ├── db.js                # SQLite初期化・ヘルパー
+│   └── schema.sql           # テーブル定義
+├── ocr/gemini.js            # Gemini 2.0 Flash OCR
+├── telegram/
+│   ├── bot.js               # コマンドハンドラ（9コマンド）
+│   └── notifications.js     # 定時通知（4種）
+├── utils/dateHelper.js      # Manila時間ユーティリティ
+└── whapi/
+    ├── client.js            # Whapi APIクライアント
+    └── webhook.js           # Webhookハンドラ
+data/bot.db                  # SQLiteデータベース（gitignore済）
+downloads/                   # WhatsAppダウンロードファイル
 ```
 
-## 🚀 デプロイ手順
+## 🤖 Telegram コマンド
 
-### 1. Supabase セットアップ
+| コマンド | 説明 |
+|---------|------|
+| `/today` | 今日の予定詳細（時間順） |
+| `/tomorrow` | 明日の予定詳細 |
+| `/week` | 今週の予定概要 |
+| `/exams` | 全試験一覧＋カウントダウン |
+| `/tasks` | 未完了タスク一覧 |
+| `/files [科目名]` | WhatsAppファイル一覧 |
+| `/search [キーワード]` | OCRテキスト全文検索 |
+| `/sync` | カレンダー手動同期 |
+| `/help` | コマンド一覧 |
 
-1. [Supabase](https://supabase.com) でプロジェクト作成
-2. **SQL Editor** で `supabase/migrations/001_init.sql` を実行
-3. **Storage** で以下のバケットを作成:
-   - `whatsapp-images` (Public)
-   - `whatsapp-documents` (Public)
-4. **Settings > API** から以下をコピー:
-   - `SUPABASE_URL`
-   - `SUPABASE_ANON_KEY`
-   - `SUPABASE_SERVICE_KEY`
+## ⏰ 定時通知スケジュール
 
-### 2. API設定
-
-#### Telegram Bot
-1. [@BotFather](https://t.me/BotFather) で `/newbot` コマンド実行
-2. Bot名とユーザー名を設定
-3. `TELEGRAM_BOT_TOKEN` をコピー
-4. Botに `/start` メッセージ送信
-5. `https://api.telegram.org/bot<TOKEN>/getUpdates` にアクセスして `chat_id` を取得
-
-#### Whapi API
-1. [Whapi.cloud](https://whapi.cloud) でアカウント作成
-2. WhatsAppアカウントを連携
-3. `WHAPI_TOKEN` をコピー
-
-#### Google Gemini API
-1. [Google AI Studio](https://aistudio.google.com/app/apikey) にアクセス
-2. API Keyを作成
-3. `GEMINI_API_KEY` をコピー
-
-### 3. Vercel デプロイ
-
-```bash
-# Vercel CLIインストール（初回のみ）
-npm install -g vercel
-
-# プロジェクトディレクトリに移動
-cd medical-secretary-bot
-
-# Vercelにログイン
-vercel login
-
-# 環境変数を設定
-vercel env add SUPABASE_URL
-vercel env add SUPABASE_ANON_KEY
-vercel env add SUPABASE_SERVICE_KEY
-vercel env add TELEGRAM_BOT_TOKEN
-vercel env add TELEGRAM_CHAT_ID
-vercel env add WHAPI_TOKEN
-vercel env add GEMINI_API_KEY
-vercel env add SCHOOL_CALENDAR_URL
-vercel env add SECTION
-vercel env add TZ
-vercel env add CRON_SECRET
-
-# デプロイ
-vercel --prod
-```
-
-### 4. Whapi Webhook設定
-
-1. Whapi Dashboard > **Settings** > **Webhooks**
-2. Webhook URL: `https://your-app.vercel.app/api/webhook/whapi`
-3. Events: **messages** をチェック
-4. **Save**
-
-### 5. 動作確認
-
-```bash
-# ヘルスチェック
-curl https://your-app.vercel.app/api/test
-
-# カレンダー同期テスト
-curl -X POST https://your-app.vercel.app/api/cron/calendar-sync \
-  -H "Authorization: Bearer YOUR_CRON_SECRET"
-```
-
-## 📝 環境変数
-
-`.env.example` を参考に以下を設定:
-
-| 変数名 | 説明 |
-|--------|------|
-| `SUPABASE_URL` | Supabaseプロジェクト URL |
-| `SUPABASE_ANON_KEY` | Supabase Anon Key |
-| `SUPABASE_SERVICE_KEY` | Supabase Service Role Key |
-| `TELEGRAM_BOT_TOKEN` | Telegram Bot Token |
-| `TELEGRAM_CHAT_ID` | あなたのTelegram Chat ID |
-| `WHAPI_TOKEN` | Whapi API Token |
-| `GEMINI_API_KEY` | Google Gemini API Key |
-| `SCHOOL_CALENDAR_URL` | 学校カレンダーのURL |
-| `SECTION` | あなたのセクション（例: 3B） |
-| `TZ` | タイムゾーン（例: Asia/Manila） |
-| `CRON_SECRET` | Cron認証用シークレット（ランダム文字列） |
-
-## 🔄 Cron Jobsスケジュール
-
-`vercel.json` で設定済み:
-
-- **毎時0分** - カレンダー同期
-- **毎日7:00** - 朝の通知
-- **毎日22:00** - 夜の準備通知
-
-## 📊 データベーススキーマ
-
-### exams（試験）
-- 科目、試験日、教室、教員、トピック、試験範囲
-
-### tasks（課題）
-- タイトル、期限、ソース（WhatsApp/カレンダー）、完了状態
-
-### whatsapp_files（WhatsAppファイル）
-- ファイル名、科目、グループ名、ファイルタイプ、URL
-
-### image_ocr（OCR結果）
-- ファイル名、科目、グループ名、OCRテキスト
-
-### calendar_events（カレンダーイベント）
-- タイトル、開始時間、終了時間、教室、教員、活動タイプ
-
-## 🎮 使い方
-
-### 自動動作
-- WhatsAppグループに投稿されたファイルは自動保存
-- カレンダーは毎時自動同期
-- Telegram通知は自動送信
-
-### 手動操作
-今後、Telegram Botコマンドを追加予定:
-- `/today` - 今日の予定
-- `/exams` - 今後の試験
-- `/tasks` - 未完了の課題
-- `/files <科目>` - ファイル一覧
-- `/search <キーワード>` - OCR検索
-
-## 🔐 セキュリティ
-
-- Supabase Row Level Security（RLS）有効化
-- Vercel環境変数で秘密情報を管理
-- Cron Jobs認証（CRON_SECRET）
-- HTTPS通信（Vercel自動対応）
-
-## 📈 今後の拡張
-
-- [ ] Telegram Botコマンド実装
-- [ ] 課題自動抽出（AI）
-- [ ] 成績管理機能
-- [ ] 出席管理機能
-- [ ] Web UIダッシュボード
-
-## 📄 ライセンス
-
-MIT License
-
-## 🆘 サポート
-
-問題が発生した場合:
-1. `/api/test` でヘルスチェック
-2. Vercel Logsを確認
-3. Supabase Logsを確認
-4. GitHub Issueを作成
+| 時刻 | 内容 |
+|-----|------|
+| 07:00 | 今日のスケジュール＋締切 |
+| 20:00 | 試験3日前アラートチェック |
+| 22:00 | 明日の準備確認 |
+| 3時間ごと | カレンダー自動同期 |
 
 ---
 
-**製作者**: CEO Medical Student
-**バージョン**: 1.0.0
+## 🚀 デプロイ手順（Google Cloud e2-micro）
+
+### ステップ 1 — GCP VMを作成
+
+> Always Free対象リージョン: `us-central1` / `us-east1` / `us-west1`
+
+**Google Cloud Console** または gcloud CLI で作成:
+
+```bash
+gcloud compute instances create medical-bot \
+  --zone=us-central1-a \
+  --machine-type=e2-micro \
+  --image-family=ubuntu-2204-lts \
+  --image-project=ubuntu-os-cloud \
+  --boot-disk-size=30GB \
+  --boot-disk-type=pd-standard \
+  --tags=medical-bot
+```
+
+### ステップ 2 — 静的IPを取得（Webhook用）
+
+VMのIPが再起動のたびに変わらないよう静的IPを予約（**VM稼働中は無料**）:
+
+```bash
+# 静的IP予約
+gcloud compute addresses create medical-bot-ip --region=us-central1
+
+# VMに割り当て
+gcloud compute instances delete-access-config medical-bot \
+  --access-config-name="External NAT" --zone=us-central1-a
+
+gcloud compute instances add-access-config medical-bot \
+  --access-config-name="External NAT" \
+  --address=$(gcloud compute addresses describe medical-bot-ip \
+    --region=us-central1 --format='value(address)') \
+  --zone=us-central1-a
+
+# IPアドレスを確認
+gcloud compute addresses describe medical-bot-ip --region=us-central1 --format='value(address)'
+```
+
+### ステップ 3 — ファイアウォールを開放
+
+```bash
+gcloud compute firewall-rules create allow-medical-bot \
+  --allow=tcp:3000 \
+  --target-tags=medical-bot \
+  --description="Medical Secretary Bot webhook port"
+```
+
+### ステップ 4 — VMにSSH接続してサーバーセットアップ
+
+```bash
+gcloud compute ssh medical-bot --zone=us-central1-a
+```
+
+**VM内で実行:**
+
+```bash
+# ========== Node.js 18 インストール ==========
+curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
+sudo apt-get install -y nodejs
+
+node --version   # v18.x.x を確認
+
+# ========== Puppeteer依存ライブラリ ==========
+sudo apt-get install -y \
+  ca-certificates fonts-liberation libasound2 libatk-bridge2.0-0 \
+  libatk1.0-0 libc6 libcairo2 libcups2 libdbus-1-3 libexpat1 \
+  libfontconfig1 libgbm1 libgcc1 libglib2.0-0 libgtk-3-0 libnspr4 \
+  libnss3 libpango-1.0-0 libpangocairo-1.0-0 libstdc++6 libx11-6 \
+  libx11-xcb1 libxcb1 libxcomposite1 libxcursor1 libxdamage1 \
+  libxext6 libxfixes3 libxi6 libxrandr2 libxrender1 libxss1 \
+  libxtst6 lsb-release wget xdg-utils
+
+# ========== スワップ追加（e2-microは1GBのため必須） ==========
+sudo fallocate -l 1G /swapfile
+sudo chmod 600 /swapfile
+sudo mkswap /swapfile
+sudo swapon /swapfile
+echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
+
+# ========== PM2インストール ==========
+sudo npm install -g pm2
+
+# ========== プロジェクトクローン ==========
+git clone https://github.com/toshi1218/medical-secretary-bot.git
+cd medical-secretary-bot
+
+# claude/... ブランチをチェックアウト
+git fetch origin
+git checkout claude/medical-secretary-bot-qIXUD
+
+# 依存パッケージインストール
+npm install
+```
+
+### ステップ 5 — 環境変数を設定
+
+```bash
+cp .env.example .env
+nano .env
+```
+
+`.env` の内容（各自の値で埋める）:
+
+```dotenv
+WHAPI_TOKEN=your_whapi_token
+WHAPI_WEBHOOK_URL=http://YOUR_VM_IP:3000/webhook/whapi
+
+TELEGRAM_BOT_TOKEN=your_telegram_bot_token
+TELEGRAM_CHAT_ID=your_telegram_chat_id
+
+GEMINI_API_KEY=your_gemini_api_key
+
+SCHOOL_CALENDAR_URL=https://script.google.com/macros/s/AKfycby.../exec
+SECTION=3B
+TIMEZONE=Asia/Manila
+PORT=3000
+```
+
+> `YOUR_VM_IP` はステップ2で取得した静的IPアドレス
+
+### ステップ 6 — 起動・永続化
+
+```bash
+# PM2で起動
+pm2 start src/index.js --name medical-bot
+
+# ログ確認
+pm2 logs medical-bot
+
+# 自動起動設定（VM再起動後も復活）
+pm2 save
+pm2 startup
+# 表示されたコマンド（sudo env PATH=...）をコピー&実行
+```
+
+### ステップ 7 — Whapi Webhook設定
+
+1. [Whapi.cloud](https://panel.whapi.cloud) にログイン
+2. **Channel** → **Settings** → **Webhooks**
+3. Webhook URL: `http://YOUR_VM_IP:3000/webhook/whapi`
+4. Events: **messages** にチェック
+5. **Save**
+
+### ステップ 8 — 動作確認
+
+```bash
+# ヘルスチェック
+curl http://YOUR_VM_IP:3000/health
+
+# Telegramでコマンドテスト
+# /sync → カレンダー同期
+# /today → 今日の予定
+# /exams → 試験一覧
+```
+
+---
+
+## 📝 環境変数一覧
+
+| 変数名 | 説明 | 必須 |
+|--------|------|------|
+| `WHAPI_TOKEN` | Whapi APIトークン | ✅ |
+| `WHAPI_WEBHOOK_URL` | Webhook公開URL（VM IP:3000/webhook/whapi） | ✅ |
+| `TELEGRAM_BOT_TOKEN` | @BotFatherで取得したToken | ✅ |
+| `TELEGRAM_CHAT_ID` | 通知送信先のChat ID | ✅ |
+| `GEMINI_API_KEY` | Google AI Studio APIキー | ✅ |
+| `SCHOOL_CALENDAR_URL` | GASカレンダーのURL | ✅ |
+| `SECTION` | 対象セクション（例: 3B） | ✅ |
+| `TIMEZONE` | タイムゾーン（Asia/Manila） | — |
+| `PORT` | Expressポート（デフォルト3000） | — |
+| `MONITORED_GROUPS` | 監視WhatsAppグループ（カンマ区切り） | — |
+
+## 🔑 各APIの取得方法
+
+### Telegram Bot Token + Chat ID
+```bash
+# 1. @BotFatherに /newbot メッセージ送信 → TOKEN取得
+# 2. 作成したBotに /start 送信
+# 3. Chat IDを取得:
+curl "https://api.telegram.org/bot<TOKEN>/getUpdates" | python3 -m json.tool
+# → result[0].message.chat.id が TELEGRAM_CHAT_ID
+```
+
+### Whapi Token
+1. [whapi.cloud](https://whapi.cloud) でアカウント作成
+2. Channel作成 → WhatsApp QRコードをスキャン
+3. Dashboard → APIトークンをコピー
+
+### Gemini API Key
+1. [aistudio.google.com](https://aistudio.google.com/app/apikey) にアクセス
+2. **Create API key** → コピー
+
+---
+
+## 🛠️ 運用コマンド
+
+```bash
+# ログ確認
+pm2 logs medical-bot --lines 100
+
+# 再起動
+pm2 restart medical-bot
+
+# 停止・起動
+pm2 stop medical-bot
+pm2 start medical-bot
+
+# ステータス確認
+pm2 status
+
+# カレンダー手動同期（Telegram経由でも可）
+# Telegramで /sync を送信
+
+# DB直接確認
+sqlite3 data/bot.db ".tables"
+sqlite3 data/bot.db "SELECT COUNT(*) FROM calendar_events;"
+sqlite3 data/bot.db "SELECT subject, exam_date FROM exams ORDER BY exam_date LIMIT 10;"
+```
+
+## 📊 データベーススキーマ
+
+| テーブル | 説明 |
+|---------|------|
+| `calendar_events` | 全カレンダーイベント（704件 3B分） |
+| `exams` | 試験イベント専用（115件 3B分） |
+| `tasks` | タスク・締切（WhatsApp/手動） |
+| `whatsapp_files` | ダウンロード済みファイル情報 |
+| `image_ocr` | 画像OCR結果 |
+
+---
+
+**バージョン**: 2.0.0 (Oracle Cloud → Google Cloud e2-micro)
